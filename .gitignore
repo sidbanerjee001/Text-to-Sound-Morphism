@@ -1,6 +1,7 @@
 # CNMAT-specific stuff
 data/
 processed_sound_files/
+model_outputs/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

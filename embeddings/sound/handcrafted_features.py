@@ -6,6 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 import soundfile as sf
+from random import sample
 
 # Functions
 
@@ -15,18 +16,17 @@ def extract_audio_features(file_path):
     spectral_centroids = librosa.feature.spectral_centroid(y=y, sr=sr)
     zero_crossing_rate = librosa.feature.zero_crossing_rate(y)
     rms_energy = librosa.feature.rms(y=y)
+    spectral_flux = librosa.onset.onset_strength(y=y, sr=sr)
     
     return [
         np.mean(spectral_centroids),
-        np.mean(zero_crossing_rate),
+        np.mean(spectral_flux),
         np.mean(rms_energy)
     ]
 
-# NRG vs. FLUX vs. CENTROID
+# NRG (rms?) vs. FLUX vs. CENTROID
 
 # Variables
-
-folder_name = "audio_files"
 all_features = []
 file_names = []
 
@@ -50,7 +50,9 @@ instrument_map["Bn"] = "Bassoon"
 
 # Scripting
 
-file_paths = list(Path(folder_name).rglob('*'))
+max_files = 1500
+folder_name = "../../data/audio_files"
+file_paths = sample(list(Path(folder_name).rglob('*')), max_files)
 
 for file_path in tqdm(file_paths, desc="Processing files..."):
     if file_path.is_file():
@@ -63,5 +65,6 @@ for file_path in tqdm(file_paths, desc="Processing files..."):
 
 all_features = np.array(all_features)
 file_names = np.array(file_names)
+
 np.save('processed_sound_files/hc_audio_features.npy', all_features)
 np.save('processed_sound_files/hc_audio_labels.npy', file_names)

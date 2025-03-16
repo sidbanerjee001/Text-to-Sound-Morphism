@@ -36,7 +36,7 @@ def load_audio_features(file_paths, max_files=None):
         if file_path.suffix == ".wav":
             try:
                 y, sr = librosa.load(str(file_path), sr=22050)
-                mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=14)
+                mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=20)
                 mfcc_mean = np.mean(mfcc, axis=1)
                 features.append(mfcc_mean)
                 for key, val in instrument_map.items():
