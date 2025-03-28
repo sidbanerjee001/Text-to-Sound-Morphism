@@ -1,4 +1,5 @@
 from pathlib import Path
+from matplotlib import pyplot as plt
 import numpy as np
 from tqdm import tqdm
 import librosa
@@ -19,32 +20,11 @@ instrument_map = {
     "Ob": "Oboe", "Fl": "Flute", "ClBb": "Clarinet", "Bn": "Bassoon"
 }
 
-def compute_avg_fft(y, window_size=2048, hop_length=512, target_dim=1024):
-    # stft_matrix = librosa.stft(y, n_fft=window_size, hop_length=hop_length)
-    # magnitude_spectrum = np.abs(stft_matrix)
-    # mean_spectrum = np.mean(magnitude_spectrum, axis=1)
-
-    # mean_spectrum = np.interp(
-    #     np.linspace(0, len(mean_spectrum), target_dim),
-    #     np.arange(len(mean_spectrum)),
-    #     mean_spectrum
-    # )
-    
-    # return mean_spectrum
-    
-    # Compute STFT (Short-Time Fourier Transform)
-    stft_matrix = librosa.stft(y, n_fft=window_size, hop_length=hop_length)
-    
-    # Convert to magnitude spectrum
-    magnitude_spectrum = np.abs(stft_matrix)
-    
-    # Compute mean FFT across time
-    mean_spectrum = np.mean(magnitude_spectrum, axis=1)
-    
-    # Ensure exactly 1024 dimensions (drop last element if needed)
-    avg_fft = mean_spectrum[:1024]
-    
-    return avg_fft
+def compute_avg_fft(y, target_dim=1024):
+    fft_values = np.abs(librosa.stft(y, n_fft=(target_dim-1)*2))
+    fft_values = np.mean(fft_values, axis=1, keepdims=True)
+    fft_values = fft_values.T
+    return fft_values[:min(len(fft_values), target_dim)]
 
 sound_data = []
 sound_labels = []
@@ -58,10 +38,10 @@ def get_lowest_level_folders(parent_folder):
             lowest_level_folders.append(folder)
     return lowest_level_folders
 
-# Function to randomly sample 75% of .wav files in a folder
+# Function to randomly sample 80% of .wav files in a folder
 def sample_wav_files(folder):
     wav_files = list(folder.glob("*.wav"))
-    sample_size = max(1, len(wav_files) // 10 * 9) # at least 1 file should be sampled!
+    sample_size = max(1, len(wav_files) // 10 * 8) # at least 1 file should be sampled!
     return sample(wav_files, sample_size)
 
 lowest_level_folders = get_lowest_level_folders(folder_name)
@@ -79,7 +59,7 @@ for file_path in tqdm(sampled_files, desc="Processing sound files..."):
                 sound_labels.append(val)
                 break
         
-        y, sr = librosa.load(file_path, sr=None)
+        y, sr = librosa.load(file_path, sr=44100)
         sound_data.append(y)
         max_length = max(max_length, len(y))
 
