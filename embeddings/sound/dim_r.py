@@ -1,6 +1,6 @@
 # Helper functions to reduce dimensionality via several methods
 
-from sklearn.decomposition import PCA
+from sklearn.decomposition import PCA, KernelPCA
 from sklearn.manifold import TSNE
 
 import matplotlib.pyplot as plt
@@ -63,6 +63,23 @@ def standardize_data(data):
         mean = np.mean(row)
         for i in range(len(row)):
             row[i] = (row[i] - mean) / std
+
+def normalize_data(data):
+    """
+    Returns a new array where each row is normalized by its max value.
+    value = value / max_value
+    """
+    data = np.array(data)
+    normalized = np.empty_like(data, dtype=float)
+
+    for i in range(data.shape[0]):
+        mx = np.max(data[i])
+        if mx != 0:
+            normalized[i] = data[i] / mx
+        else:
+            normalized[i] = data[i]
+
+    return normalized
 
 def reduce_PCA(x, y, n_components=3, title='Default Title', 
                xlabel='Component 1', ylabel='Component 2', zlabel='Component 3'):
@@ -183,17 +200,63 @@ def reduce_tSNE(x, y, n_components=3, perplexity=30, random_state=42,
         fig.tight_layout()
         fig.suptitle(title)
         
+    return X_encoded_tsne, fig, ax
+
+def kPCA(x, y, n_components=2, kernel='rbf'):
+    kernel_pca = KernelPCA(n_components=2, kernel=kernel, gamma=0.1)
+
+    X_kpca = kernel_pca.fit_transform(x)
+
+    unique_labels = np.unique(y)
+    color_palette = sns.color_palette("coolwarm", len(unique_labels))
+    label_to_color = {label: color for label, color in zip(unique_labels, color_palette)}
+    colors = [label_to_color[label] for label in y]
+
+    if n_components == 2:
+        fig, ax = plt.subplots(figsize=(10, 6))
+        ax.scatter(X_kpca[:, 0], X_kpca[:, 1], color=colors, alpha=0.7)
+        ax.set_xlabel("PCA 1")
+        ax.set_ylabel("PCA 2")
+        ax.set_title("PCA of Data")
+        
+        handles = [plt.Line2D([0], [0], marker="o", color="w", markersize=10, 
+                            markerfacecolor=color) for color in color_palette]
+        ax.legend(handles, unique_labels, title="PCA of Data")
+        
+    elif n_components == 3:
+        fig = plt.figure(figsize=(10, 6))
+        ax = fig.add_subplot(111, projection='3d')
+        ax.scatter(X_kpca[:, 0], X_kpca[:, 1], X_kpca[:, 2], color=colors, alpha=0.7)
+        ax.set_xlabel("PCA 1")
+        ax.set_ylabel("PCA 2")
+        ax.set_zlabel("PCA 3")
+        ax.set_title("PCA of Data")
+        
+        handles = [plt.Line2D([0], [0], marker="o", color="w", markersize=10, 
+                            markerfacecolor=color) for color in color_palette]
+        ax.legend(handles, unique_labels, title="PCA of Data")
+        
+        fig.tight_layout()
+        fig.suptitle("PCA of Data")
+        
+        handles = [plt.Line2D([0], [0], marker="o", color="w", markersize=10, 
+                            markerfacecolor=color) for color in color_palette]
+        fig.legend(handles, unique_labels, title="PCA of Data", loc='upper right')
+        
     return fig, ax
 
 if __name__ == "__main__":
     X_encoded = np.load('model_outputs/autoencoder_output.npy')
     y = np.load('model_outputs/autoencoder_labels.npy')
 
-    standardize_data(X_encoded)
+    # standardize_data(X_encoded)
+    normal_X_encoded = normalize_data(X_encoded)
 
-    # Try kernel trick
-    fig, axs = reduce_tSNE(X_encoded, y, n_components=2, perplexity=30, title="tSNE Reduced Dimensionality Map")
+    X_encoded_tsne, fig, axs = reduce_tSNE(normal_X_encoded, y, n_components=3, perplexity=30, title="tSNE Reduced Dimensionality Map")
+    # fig, axs = kPCA(X_encoded, y, kernel='rbf')
     # fig, axs = reduce_PCA(X_encoded, y, n_components=2, title="PCA Reduced Dimensionality Map")
 
-    plt.tight_layout()
-    plt.show()
+    np.savez("embedding_outputs/tsne_samples_3d.npz", vectors=X_encoded_tsne, instruments=y)
+
+    # plt.tight_layout()
+    # plt.show()
