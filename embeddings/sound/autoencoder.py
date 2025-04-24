@@ -5,40 +5,69 @@ from tensorflow.keras import layers
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 
-# CAN WE MAKE A MEANINGFUL MAPPING BETWEEN TEXT AND MUSIC WITH UNSUPERVISED LEARNING?
-
-# WAYS TO VALIDATE CLUSTERS: INTRA CLUSTER DISTANCE VS INTER CLUSTER, BIC MEASURE
-# Geometry (differences) vs. topology (variances. may look different but encode the same concept)
-# KL Divergence for a distribution that sums to 1 (i.e. FFT distribution, PSD)
-
+# Load data
 X = np.load("processed_sound_files/sound_data.npy")
 y = np.load("processed_sound_files/sound_labels.npy")
 
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.80, random_state=42)
+X = X.squeeze(axis=1)
+
+# Train-test split
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.20, random_state=42)
+
+# Reshape for Conv1D: (samples, timesteps, features)
+X_train = np.expand_dims(X_train, axis=-1)
+X_test = np.expand_dims(X_test, axis=-1)
 
 input_dim = X.shape[1]
 
-# Autoencoder stuff
-encoder_input = layers.Input(shape=(input_dim,))
-encoder_output = layers.Dense(512, activation="relu")(encoder_input)
-encoder_output = layers.Dense(64, activation="relu")(encoder_output)
-encoder_output = layers.Dense(14, activation="relu")(encoder_output)
-encoder = keras.Model(encoder_input, encoder_output, name="encoder")
+# Encoder
+inputs = keras.Input(shape=(input_dim, 1))
+x = layers.Conv1D(256, 5, activation="relu", padding="same")(inputs)
+x = layers.MaxPooling1D(2)(x)  # Downsampling
+x = layers.BatchNormalization()(x)
 
-decoder_input = layers.Input(shape=(14,))
-decoder_output = layers.Dense(64, activation="relu")(decoder_input)
-decoder_output = layers.Dense(512, activation="relu")(decoder_output)
-decoder_output = layers.Dense(input_dim, activation="relu")(decoder_output)
-decoder = keras.Model(decoder_input, decoder_output, name="decoder")
+x = layers.Conv1D(128, 5, activation="relu", padding="same")(x)
+x = layers.MaxPooling1D(2)(x)  # Further downsampling
+x = layers.BatchNormalization()(x)
 
-autoencoder_input = layers.Input(shape=(input_dim,))
-encoded = encoder(autoencoder_input)
-decoded = decoder(encoded)
-autoencoder = keras.Model(autoencoder_input, decoded, name="autoencoder")
+x = layers.Flatten()(x)
 
-autoencoder.compile(optimizer="adam", loss="mse")
+# Add dropout to prevent overfitting
+x = layers.Dropout(0.3)(x)
 
-autoencoder.fit(X_train, X_train, epochs=50, batch_size=16)
+# Dense layers with regularization
+x = layers.Dense(64, activation="relu", 
+                    kernel_regularizer=tf.keras.regularizers.l2(0.001))(x)
+
+# Latent space with linear activation and regularization
+latent = layers.Dense(14, activation="linear", 
+                        kernel_regularizer=tf.keras.regularizers.l2(0.001))(x)
+
+# Decoder
+x = layers.Dense(64, activation="relu", 
+                    kernel_regularizer=tf.keras.regularizers.l2(0.001))(latent)
+
+x = layers.Dense(input_dim * 128, activation="relu")(x)
+x = layers.Reshape((input_dim, 128))(x)
+
+x = layers.Conv1DTranspose(128, 5, activation="relu", padding="same")(x)
+x = layers.BatchNormalization()(x)
+
+x = layers.Conv1DTranspose(256, 5, activation="relu", padding="same")(x)
+x = layers.BatchNormalization()(x)
+
+outputs = layers.Conv1DTranspose(1, 5, activation="linear", padding="same")(x)
+
+autoencoder = keras.Model(inputs=inputs, outputs=outputs)
+encoder = keras.Model(inputs=inputs, outputs=latent)
+
+autoencoder.compile(optimizer='adam', loss='mse')
+
+# Train the autoencoder
+# X shape is (1024, 1)
+autoencoder.fit(X_train, X_train, epochs=50, batch_size=32, validation_split=0.2, shuffle=True)
+
+# Encode test data
 X_encoded = encoder.predict(X_test)
 
 np.save('model_outputs/autoencoder_output.npy', X_encoded)

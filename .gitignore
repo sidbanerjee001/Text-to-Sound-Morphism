@@ -2,6 +2,7 @@
 data/
 processed_sound_files/
 model_outputs/
+embedding_outputs/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

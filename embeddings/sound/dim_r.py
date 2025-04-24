@@ -1,12 +1,85 @@
 # Helper functions to reduce dimensionality via several methods
 
-from sklearn.decomposition import PCA
+from sklearn.decomposition import PCA, KernelPCA
 from sklearn.manifold import TSNE
 
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 from sklearn.preprocessing import LabelEncoder
+
+def reduce_handcrafted():
+    # Load features and labels
+    all_features = np.load('processed_sound_files/hc_audio_features.npy')
+    file_names = np.load('processed_sound_files/hc_audio_labels.npy')
+
+    # Encode labels
+    label_encoder = LabelEncoder()
+    file_name_labels = label_encoder.fit_transform(file_names)
+    num_classes = len(np.unique(file_name_labels))
+
+    # Use tab20 colormap for more distinct colors
+    cmap = plt.cm.get_cmap("tab20", num_classes)
+    colors = cmap(file_name_labels % cmap.N)  # Ensure colors wrap around if more than cmap.N
+
+    # Plotting
+    fig = plt.figure(figsize=(10, 8))
+    ax = fig.add_subplot(111, projection='3d')
+
+    x = all_features[:, 0]  # Spectral Centroid
+    y = all_features[:, 1]  # Zero Crossing Rate
+    z = all_features[:, 2]  # RMS Energy
+
+    # Scatter plot
+    ax.scatter(x, y, z, c=colors)
+
+    ax.set_xlabel('Spectral Centroid')
+    ax.set_ylabel('Spectral Flux')
+    ax.set_zlabel('RMS Energy')
+    ax.set_title('Audio Features Scatterplot')
+
+    # Legend setup
+    unique_labels = np.unique(file_name_labels)
+    legend_labels = label_encoder.inverse_transform(unique_labels)
+    legend_patches = [
+        plt.Line2D([0], [0], marker='o', color='w', label=label,
+                markerfacecolor=cmap(i % cmap.N), markersize=10) 
+        for i, label in enumerate(legend_labels)
+    ]
+
+    ax.legend(handles=legend_patches, title="Instruments", loc='upper right')
+
+    plt.tight_layout()
+    plt.show()
+
+def standardize_data(data):
+    """
+    In-place function to standardize the data.
+    z = (value-mean) / (std)
+    """
+    
+    for row in data:
+        std = np.std(row)
+        mean = np.mean(row)
+        for i in range(len(row)):
+            row[i] = (row[i] - mean) / std
+
+def normalize_data(data):
+    """
+    Returns a new array where each row is normalized by its max value.
+    value = value / max_value
+    """
+    data = np.array(data)
+    normalized = np.empty_like(data, dtype=float)
+
+    for i in range(data.shape[0]):
+        mx = np.max(data[i])
+        if mx != 0:
+            normalized[i] = data[i] / mx
+        else:
+            normalized[i] = data[i]
+
+    return normalized
 
 def reduce_PCA(x, y, n_components=3, title='Default Title', 
                xlabel='Component 1', ylabel='Component 2', zlabel='Component 3'):
@@ -127,60 +200,63 @@ def reduce_tSNE(x, y, n_components=3, perplexity=30, random_state=42,
         fig.tight_layout()
         fig.suptitle(title)
         
+    return X_encoded_tsne, fig, ax
+
+def kPCA(x, y, n_components=2, kernel='rbf'):
+    kernel_pca = KernelPCA(n_components=2, kernel=kernel, gamma=0.1)
+
+    X_kpca = kernel_pca.fit_transform(x)
+
+    unique_labels = np.unique(y)
+    color_palette = sns.color_palette("coolwarm", len(unique_labels))
+    label_to_color = {label: color for label, color in zip(unique_labels, color_palette)}
+    colors = [label_to_color[label] for label in y]
+
+    if n_components == 2:
+        fig, ax = plt.subplots(figsize=(10, 6))
+        ax.scatter(X_kpca[:, 0], X_kpca[:, 1], color=colors, alpha=0.7)
+        ax.set_xlabel("PCA 1")
+        ax.set_ylabel("PCA 2")
+        ax.set_title("PCA of Data")
+        
+        handles = [plt.Line2D([0], [0], marker="o", color="w", markersize=10, 
+                            markerfacecolor=color) for color in color_palette]
+        ax.legend(handles, unique_labels, title="PCA of Data")
+        
+    elif n_components == 3:
+        fig = plt.figure(figsize=(10, 6))
+        ax = fig.add_subplot(111, projection='3d')
+        ax.scatter(X_kpca[:, 0], X_kpca[:, 1], X_kpca[:, 2], color=colors, alpha=0.7)
+        ax.set_xlabel("PCA 1")
+        ax.set_ylabel("PCA 2")
+        ax.set_zlabel("PCA 3")
+        ax.set_title("PCA of Data")
+        
+        handles = [plt.Line2D([0], [0], marker="o", color="w", markersize=10, 
+                            markerfacecolor=color) for color in color_palette]
+        ax.legend(handles, unique_labels, title="PCA of Data")
+        
+        fig.tight_layout()
+        fig.suptitle("PCA of Data")
+        
+        handles = [plt.Line2D([0], [0], marker="o", color="w", markersize=10, 
+                            markerfacecolor=color) for color in color_palette]
+        fig.legend(handles, unique_labels, title="PCA of Data", loc='upper right')
+        
     return fig, ax
-
-def reduce_handcrafted():
-    # Load features and labels
-    all_features = np.load('processed_sound_files/hc_audio_features.npy')
-    file_names = np.load('processed_sound_files/hc_audio_labels.npy')
-
-    # Encode labels
-    label_encoder = LabelEncoder()
-    file_name_labels = label_encoder.fit_transform(file_names)
-    num_classes = len(np.unique(file_name_labels))
-
-    # Use tab20 colormap for more distinct colors
-    cmap = plt.cm.get_cmap("tab20", num_classes)
-    colors = cmap(file_name_labels % cmap.N)  # Ensure colors wrap around if more than cmap.N
-
-    # Plotting
-    fig = plt.figure(figsize=(10, 8))
-    ax = fig.add_subplot(111, projection='3d')
-
-    x = all_features[:, 0]  # Spectral Centroid
-    y = all_features[:, 1]  # Zero Crossing Rate
-    z = all_features[:, 2]  # RMS Energy
-
-    # Scatter plot
-    ax.scatter(x, y, z, c=colors)
-
-    ax.set_xlabel('Spectral Centroid')
-    ax.set_ylabel('Spectral Flux')
-    ax.set_zlabel('RMS Energy')
-    ax.set_title('Audio Features Scatterplot')
-
-    # Legend setup
-    unique_labels = np.unique(file_name_labels)
-    legend_labels = label_encoder.inverse_transform(unique_labels)
-    legend_patches = [
-        plt.Line2D([0], [0], marker='o', color='w', label=label,
-                markerfacecolor=cmap(i % cmap.N), markersize=10) 
-        for i, label in enumerate(legend_labels)
-    ]
-
-    ax.legend(handles=legend_patches, title="Instruments", loc='upper right')
-
-    plt.tight_layout()
-    plt.show()
-
 
 if __name__ == "__main__":
     X_encoded = np.load('model_outputs/autoencoder_output.npy')
     y = np.load('model_outputs/autoencoder_labels.npy')
 
-    fig, axs = reduce_tSNE(X_encoded, y, n_components=2, perplexity=25, title="tSNE Reduced Dimensionality Map")
-    # fig, axs = reduce_PCA(X_encoded, y, n_components=3, title="PCA Reduced Dimensionality Map")
-    # fig, axs = reduce_PCA(X_encoded, y, n_components=2, title='PCA reduced plot of Centroid vs. Flux vs. RMS NRG')
+    # standardize_data(X_encoded)
+    normal_X_encoded = normalize_data(X_encoded)
 
-    plt.tight_layout()
-    plt.show()
+    X_encoded_tsne, fig, axs = reduce_tSNE(normal_X_encoded, y, n_components=3, perplexity=30, title="tSNE Reduced Dimensionality Map")
+    # fig, axs = kPCA(X_encoded, y, kernel='rbf')
+    # fig, axs = reduce_PCA(X_encoded, y, n_components=2, title="PCA Reduced Dimensionality Map")
+
+    np.savez("embedding_outputs/tsne_samples_3d.npz", vectors=X_encoded_tsne, instruments=y)
+
+    # plt.tight_layout()
+    # plt.show()
